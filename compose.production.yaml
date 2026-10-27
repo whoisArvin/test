@@ -1,0 +1,38 @@
+# Combine with compose.yaml. Supply HTTPS APP_URL and strong secrets via .env/secret manager.
+services:
+  app:
+    build: .
+    image: berjis:local
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://berjis:${POSTGRES_PASSWORD}@postgres:5432/berjis?schema=public
+      REDIS_URL: redis://redis:6379
+    ports: ['127.0.0.1:3000:3000']
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+  worker:
+    image: berjis:local
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://berjis:${POSTGRES_PASSWORD}@postgres:5432/berjis?schema=public
+      REDIS_URL: redis://redis:6379
+    command: ['node', 'dist/worker.js']
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped

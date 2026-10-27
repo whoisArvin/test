@@ -1,0 +1,263 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "client"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+enum Role {
+  CUSTOMER
+  SUPPORT
+  BOOKING_AGENT
+  SALES_MANAGER
+  ACCOUNTANT
+  SUPER_ADMIN
+}
+enum Product {
+  FLIGHT
+  HOTEL
+  TOUR
+}
+enum BookingStatus {
+  AWAITING_PAYMENT
+  CONFIRMING
+  CONFIRMED
+  EXPIRED
+  CANCELLED
+  CANCELLATION_REQUESTED
+  FAILED
+}
+enum PaymentStatus {
+  UNPAID
+  PROCESSING
+  PAID
+  FAILED
+  REFUND_PENDING
+  REFUNDED
+}
+enum FulfilmentStatus {
+  NOT_ISSUED
+  PENDING
+  ISSUED
+  FAILED
+}
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  name String
+  passwordHash String
+  role Role @default(CUSTOMER)
+  createdAt DateTime @default(now())
+  sessions Session[]
+  travelers Traveler[]
+  reservations Reservation[]
+  tickets SupportTicket[]
+  notifications Notification[]
+}
+model Session {
+  id String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+model Traveler {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName String
+  lastName String
+  birthDate DateTime @db.Date
+  documentCipher String
+}
+model Supplier {
+  id String @id
+  name String
+  mode String @default("DEMO")
+  offers Offer[]
+}
+model Offer {
+  id String @id @default(cuid())
+  supplierId String
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+  product Product
+  title String
+  subtitle String
+  origin String?
+  destination String
+  priceIrr Int
+  currency String @default("IRR")
+  image String
+  details Json
+  published Boolean @default(true)
+  createdAt DateTime @default(now())
+  inventory Inventory[]
+  items BookingItem[]
+  @@index([product, destination, published])
+}
+model Inventory {
+  id String @id @default(cuid())
+  offerId String
+  offer Offer @relation(fields: [offerId], references: [id])
+  date DateTime @db.Date
+  total Int
+  available Int
+  @@unique([offerId, date])
+  @@index([date])
+}
+model Reservation {
+  id String @id @default(cuid())
+  reference String @unique
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  idempotencyKey String
+  requestHash String
+  product Product
+  totalIrr Int
+  currency String @default("IRR")
+  status BookingStatus @default(AWAITING_PAYMENT)
+  paymentStatus PaymentStatus @default(UNPAID)
+  fulfilmentStatus FulfilmentStatus @default(NOT_ISSUED)
+  demo Boolean @default(true)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  items BookingItem[]
+  passengers Passenger[]
+  payment Payment?
+  document Document?
+  refunds Refund[]
+  audits AuditLog[]
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
+}
+model BookingItem {
+  id String @id @default(cuid())
+  reservationId String
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  offerId String
+  offer Offer @relation(fields: [offerId], references: [id])
+  startDate DateTime @db.Date
+  endDate DateTime @db.Date
+  quantity Int
+  unitIrr Int
+  snapshot Json
+}
+model Passenger {
+  id String @id @default(cuid())
+  reservationId String
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  firstName String
+  lastName String
+  birthDate DateTime @db.Date
+  documentCipher String
+}
+model Payment {
+  id String @id @default(cuid())
+  reservationId String @unique
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  amountIrr Int
+  currency String @default("IRR")
+  provider String @default("DEMO")
+  providerReference String @unique
+  verifiedAt DateTime?
+  createdAt DateTime @default(now())
+  gateway DemoGatewayTransaction?
+  events PaymentEvent[]
+}
+model DemoGatewayTransaction {
+  paymentId String @id
+  payment Payment @relation(fields: [paymentId], references: [id])
+  amountIrr Int
+  currency String @default("IRR")
+  orderId String
+  status String @default("PENDING")
+  failureScenario String @default("NONE")
+  updatedAt DateTime @updatedAt
+}
+model PaymentEvent {
+  id String @id @default(cuid())
+  paymentId String
+  payment Payment @relation(fields: [paymentId], references: [id])
+  providerEventId String @unique
+  kind String
+  createdAt DateTime @default(now())
+}
+model Document {
+  id String @id @default(cuid())
+  reservationId String @unique
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  supplierReference String @unique
+  kind String
+  demo Boolean @default(true)
+  issuedAt DateTime @default(now())
+}
+model Refund {
+  id String @id @default(cuid())
+  reservationId String
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  reason String
+  status String @default("REQUESTED")
+  amountIrr Int
+  demo Boolean @default(true)
+  createdAt DateTime @default(now())
+  @@index([status, createdAt])
+}
+model AuditLog {
+  id String @id @default(cuid())
+  reservationId String?
+  reservation Reservation? @relation(fields: [reservationId], references: [id])
+  actorId String
+  action String
+  metadata Json?
+  createdAt DateTime @default(now())
+  @@index([reservationId, createdAt])
+}
+model DurableJob {
+  id String @id @default(cuid())
+  key String @unique
+  kind String
+  reservationId String
+  status String @default("PENDING")
+  attempts Int @default(0)
+  lastError String?
+  availableAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  @@index([status, availableAt])
+}
+model SupportTicket {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  subject String
+  message String
+  reply String?
+  status String @default("OPEN")
+  createdAt DateTime @default(now())
+}
+model Article {
+  id String @id
+  title String
+  excerpt String
+  body String
+  image String
+  published Boolean @default(true)
+}
+model SystemSetting {
+  key String @id
+  value Json
+}
+
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventKey String @unique
+  reservationId String?
+  title String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}
