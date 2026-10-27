@@ -6,6 +6,9 @@
 
 ## اجرای توسعه
 
+اسکریپت نصب با Node.js اجرا می‌شود و به Bash یا WSL نیاز ندارد. اگر قبلاً مسیر Bash را در تنظیمات پروژه ثبت کرده‌اید، ابتدا در PowerShell دستور `npm config delete script-shell --location=project` را اجرا کنید. سپس Docker Desktop را باز و `npm run setup` را اجرا کنید.
+
+
 پیش‌نیاز: Node.js 24 (حداقل 22.12)، npm، Docker و Docker Compose. کاتالوگ اولیه برای ۶۰ روز آینده موجودی آزمایشی می‌سازد.
 
 ```bash
